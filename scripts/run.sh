@@ -20,6 +20,17 @@ send_ntfy() {
   curl -s -X POST --data-binary "$1" -H "Content-Type: text/plain; charset=utf-8" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null
 }
 
+# lowercase, then truncate to 8 chars (trim a trailing space left by the cut)
+fmt_name() {
+  local n
+  n=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  if [ "${#n}" -gt 8 ]; then
+    n="${n:0:8}"
+    n="${n% }"
+  fi
+  echo "$n"
+}
+
 commit_state() {
   git add state.json
   if ! git diff --cached --quiet; then
@@ -100,9 +111,9 @@ for i in $(seq 1 6); do
 
     if [ -z "$already" ]; then
       if [ "$status" = "2H" ] && [ "$elapsed" -ge 70 ] 2>/dev/null && [ "$gap" -ge 2 ]; then
-        h_lc=$(echo "$home" | tr '[:upper:]' '[:lower:]')
-        a_lc=$(echo "$away" | tr '[:upper:]' '[:lower:]')
-        lines+=("$(printf '%s (%s) vs (%s) %s' "$h_lc" "$gh" "$ga" "$a_lc")")
+        h_s=$(fmt_name "$home")
+        a_s=$(fmt_name "$away")
+        lines+=("$(printf "%s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
         jq --arg id "$fid" --arg h "$home" --arg a "$away" --argjson gh "$gh" --argjson ga "$ga" \
           '.alerted[$id] = {home:$h, away:$a, goalsHome:$gh, goalsAway:$ga}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
       fi
@@ -113,9 +124,9 @@ for i in $(seq 1 6); do
       prev_leader="tie"; [ "$prev_gh" -gt "$prev_ga" ] && prev_leader="home"; [ "$prev_ga" -gt "$prev_gh" ] && prev_leader="away"
       cur_leader="tie"; [ "$gh" -gt "$ga" ] && cur_leader="home"; [ "$ga" -gt "$gh" ] && cur_leader="away"
       if [ "$gap" -lt "$prev_gap" ] || [ "$cur_leader" != "$prev_leader" ]; then
-        h_lc=$(echo "$home" | tr '[:upper:]' '[:lower:]')
-        a_lc=$(echo "$away" | tr '[:upper:]' '[:lower:]')
-        lines+=("$(printf 'update: %s (%s) vs (%s) %s' "$h_lc" "$gh" "$ga" "$a_lc")")
+        h_s=$(fmt_name "$home")
+        a_s=$(fmt_name "$away")
+        lines+=("$(printf "update: %s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
       fi
       if [ "$gh" != "$prev_gh" ] || [ "$ga" != "$prev_ga" ]; then
         jq --arg id "$fid" --arg h "$home" --arg a "$away" --argjson gh "$gh" --argjson ga "$ga" \
