@@ -111,9 +111,9 @@ while IFS=$'\t' read -r fid status elapsed home away gh ga fdate; do
       a_s=$(fmt_name "$away")
       cb=$(comeback_prob "$elapsed" "$gap")
       if [ "$gh" -gt "$ga" ]; then
-        a_s="$a_s [cb ${cb}%]"
+        a_s="$a_s ${cb}%"
       else
-        h_s="$h_s [cb ${cb}%]"
+        h_s="$h_s ${cb}%"
       fi
       lines+=("$(printf "%s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
       jq --arg id "$fid" --arg h "$home" --arg a "$away" --argjson gh "$gh" --argjson ga "$ga" \
@@ -131,9 +131,9 @@ while IFS=$'\t' read -r fid status elapsed home away gh ga fdate; do
       if [ "$gap" -ge 2 ]; then
         cb=$(comeback_prob "$elapsed" "$gap")
         if [ "$gh" -gt "$ga" ]; then
-          a_s="$a_s [cb ${cb}%]"
+          a_s="$a_s ${cb}%"
         else
-          h_s="$h_s [cb ${cb}%]"
+          h_s="$h_s ${cb}%"
         fi
       fi
       lines+=("$(printf "update: %s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
