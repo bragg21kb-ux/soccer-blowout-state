@@ -45,6 +45,30 @@ commit_state() {
 now_epoch=$(date -u +%s)
 today_central=$(TZ="$TZ_NAME" date +%Y-%m-%d)
 
+DONE_SET="FT AET PEN CANC ABD AWD WO PST"
+
+# True (exit 0) if the fixtures response has any fixture that isn't
+# finished/abandoned and isn't just a stale (>5h old) record. Used to avoid
+# trusting a stale dayComplete=true flag: different leagues kick off at very
+# different times across the same Central-time calendar date, so games can
+# still be live or yet to start even after an earlier batch finished.
+has_pending_fixtures() {
+  local resp="$1" now="$2" pending=1
+  while IFS=$'\t' read -r fid status elapsed home away gh ga fdate; do
+    [ -z "$fid" ] && continue
+    local is_done=false
+    for s in $DONE_SET; do [ "$status" = "$s" ] && is_done=true; done
+    if [ "$is_done" = false ]; then
+      local fdate_epoch age
+      fdate_epoch=$(date -u -d "$fdate" +%s)
+      age=$(( now - fdate_epoch ))
+      [ "$age" -gt $((5*3600)) ] && is_done=true
+    fi
+    [ "$is_done" = false ] && pending=0
+  done < <(echo "$resp" | jq -r '.response[] | [.fixture.id, .fixture.status.short, (.fixture.status.elapsed // 0), .teams.home.name, .teams.away.name, .goals.home, .goals.away, .fixture.date] | @tsv')
+  return $pending
+}
+
 if [ ! -f "$STATE_FILE" ] || ! jq -e . "$STATE_FILE" >/dev/null 2>&1; then
   echo '{"date":null,"firstGameStartUtc":null,"dayComplete":true,"alerted":{}}' > "$STATE_FILE"
 fi
@@ -54,11 +78,18 @@ day_complete=$(jq -r '.dayComplete' "$STATE_FILE")
 
 if [ "$day_complete" = "false" ]; then
   tracked_date="$state_date"
-else
-  if [ "$state_date" = "$today_central" ]; then
+elif [ "$state_date" = "$today_central" ]; then
+  recheck_resp=$(api_call "$today_central")
+  if has_pending_fixtures "$recheck_resp" "$now_epoch"; then
+    tracked_date="$today_central"
+    jq '.dayComplete = false' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    commit_state
+    echo "Stale dayComplete flag for $today_central — pending fixtures found, resuming polling."
+  else
     echo "Day already closed out for $today_central — dormant, nothing to do."
     exit 0
   fi
+else
   tracked_date="$today_central"
   resp=$(api_call "$tracked_date")
   results=$(echo "$resp" | jq -r '.results')
@@ -86,8 +117,6 @@ if [ "$now_epoch" -lt "$activation_epoch" ]; then
   echo "Dormant until activation at $(date -u -d "@$activation_epoch" +%Y-%m-%dT%H:%M:%SZ)"
   exit 0
 fi
-
-DONE_SET="FT AET PEN CANC ABD AWD WO PST"
 
 for i in $(seq 1 6); do
   resp=$(api_call "$tracked_date")
