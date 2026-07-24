@@ -26,12 +26,12 @@ send_ntfy() {
   curl -s -X POST --data-binary "$1" -H "Content-Type: text/plain; charset=utf-8" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null
 }
 
-# lowercase, then truncate to 8 chars (trim a trailing space left by the cut)
+# lowercase, then truncate to 7 chars (trim a trailing space left by the cut)
 fmt_name() {
   local n
   n=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-  if [ "${#n}" -gt 8 ]; then
-    n="${n:0:8}"
+  if [ "${#n}" -gt 7 ]; then
+    n="${n:0:7}"
     n="${n% }"
   fi
   echo "$n"
