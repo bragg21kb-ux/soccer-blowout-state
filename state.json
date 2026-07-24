@@ -1,13 +1,6 @@
 {
-  "date": "2026-07-23",
-  "firstGameStartUtc": "2026-07-23T08:30:00Z",
-  "dayComplete": true,
-  "alerted": {
-    "1591942": {
-      "home": "Borac Banja Luka",
-      "away": "Petrocub",
-      "goalsHome": 2,
-      "goalsAway": 0
-    }
-  }
+  "date": "2026-07-24",
+  "firstGameStartUtc": "2026-07-24T00:00:00Z",
+  "dayComplete": false,
+  "alerted": {}
 }
