@@ -37,6 +37,25 @@ fmt_name() {
   echo "$n"
 }
 
+# P(losing team comes back to WIN) by minutes elapsed and goal deficit.
+# Skellam model calibrated to historical down-2/down-3 comeback rates.
+# Alerts only fire at 2H/70'+, so buckets start at 70.
+comeback_prob() {
+  local elapsed=$1 gap=$2 row
+  if   [ "$elapsed" -ge 90 ]; then row="0.18 0.01 0.00"
+  elif [ "$elapsed" -ge 85 ]; then row="0.50 0.04 0.00"
+  elif [ "$elapsed" -ge 80 ]; then row="1.00 0.12 0.01"
+  elif [ "$elapsed" -ge 75 ]; then row="1.67 0.24 0.03"
+  else                             row="2.49 0.43 0.06"
+  fi
+  set -- $row
+  if   [ "$gap" -le 2 ]; then echo "$1"
+  elif [ "$gap" -eq 3 ]; then echo "$2"
+  elif [ "$gap" -eq 4 ]; then echo "$3"
+  else echo "0.00"
+  fi
+}
+
 commit_state() {
   git add state.json
   if ! git diff --cached --quiet; then
@@ -90,6 +109,12 @@ while IFS=$'\t' read -r fid status elapsed home away gh ga fdate; do
     if [ "$status" = "2H" ] && [ "$elapsed" -ge 70 ] 2>/dev/null && [ "$gap" -ge 2 ]; then
       h_s=$(fmt_name "$home")
       a_s=$(fmt_name "$away")
+      cb=$(comeback_prob "$elapsed" "$gap")
+      if [ "$gh" -gt "$ga" ]; then
+        a_s="$a_s [cb ${cb}%]"
+      else
+        h_s="$h_s [cb ${cb}%]"
+      fi
       lines+=("$(printf "%s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
       jq --arg id "$fid" --arg h "$home" --arg a "$away" --argjson gh "$gh" --argjson ga "$ga" \
         '.alerted[$id] = {home:$h, away:$a, goalsHome:$gh, goalsAway:$ga}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
@@ -103,6 +128,14 @@ while IFS=$'\t' read -r fid status elapsed home away gh ga fdate; do
     if [ "$gap" -lt "$prev_gap" ] || [ "$cur_leader" != "$prev_leader" ]; then
       h_s=$(fmt_name "$home")
       a_s=$(fmt_name "$away")
+      if [ "$gap" -ge 2 ]; then
+        cb=$(comeback_prob "$elapsed" "$gap")
+        if [ "$gh" -gt "$ga" ]; then
+          a_s="$a_s [cb ${cb}%]"
+        else
+          h_s="$h_s [cb ${cb}%]"
+        fi
+      fi
       lines+=("$(printf "update: %s' %s (%s) vs (%s) %s" "$elapsed" "$h_s" "$gh" "$ga" "$a_s")")
     fi
     if [ "$gh" != "$prev_gh" ] || [ "$ga" != "$prev_ga" ]; then
